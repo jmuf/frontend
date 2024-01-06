@@ -13,7 +13,7 @@ import {
   mdiWater,
 } from "@mdi/js";
 import { UnsubscribeFunc } from "home-assistant-js-websocket";
-import { css, html, LitElement, svg, nothing, PropertyValues } from "lit";
+import { css, html, LitElement, svg, PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators";
 import { classMap } from "lit/directives/class-map";
 import { formatNumber } from "../../../../common/number/format_number";
@@ -21,12 +21,11 @@ import "../../../../components/ha-card";
 import "../../../../components/ha-svg-icon";
 import {
   EnergyData,
-  energySourcesByType,
   getEnergyDataCollection,
   getEnergyGasUnit,
   getEnergyWaterUnit,
+  calculateEnergyTotals,
 } from "../../../../data/energy";
-import { calculateStatisticsSumGrowth } from "../../../../data/recorder";
 import { SubscribeMixin } from "../../../../mixins/subscribe-mixin";
 import { HomeAssistant } from "../../../../types";
 import { LovelaceCard } from "../../types";
@@ -77,140 +76,40 @@ class HuiEnergyDistrubutionCard
     );
   }
 
+  // JI: split between calculation in energy.ts and rendering/circumferences etc
   protected render() {
-    if (!this._config) {
-      return nothing;
-    }
-
     if (!this._data) {
       return html`${this.hass.localize(
         "ui.panel.lovelace.cards.energy.loading"
       )}`;
     }
-
-    const prefs = this._data.prefs;
-    const types = energySourcesByType(prefs);
-
-    // The strategy only includes this card if we have a grid.
-    const hasConsumption = true;
-
-    const hasSolarProduction = types.solar !== undefined;
-    const hasBattery = types.battery !== undefined;
-    const hasGas = types.gas !== undefined;
-    const hasWater = types.water !== undefined;
-    const hasReturnToGrid = hasConsumption && types.grid![0].flow_to.length > 0;
-
-    const totalFromGrid =
-      calculateStatisticsSumGrowth(
-        this._data.stats,
-        types.grid![0].flow_from.map((flow) => flow.stat_energy_from)
-      ) ?? 0;
-
-    let waterUsage: number | null = null;
-    if (hasWater) {
-      waterUsage =
-        calculateStatisticsSumGrowth(
-          this._data.stats,
-          types.water!.map((source) => source.stat_energy_from)
-        ) ?? 0;
+    const ddata = calculateEnergyTotals(this._data);
+    if (!ddata) {
+      return html`${this.hass.localize(
+        "ui.panel.lovelace.cards.energy.loading"
+      ) + " - calculating"}`;
     }
-
-    let gasUsage: number | null = null;
-    if (hasGas) {
-      gasUsage =
-        calculateStatisticsSumGrowth(
-          this._data.stats,
-          types.gas!.map((source) => source.stat_energy_from)
-        ) ?? 0;
-    }
-
-    let totalSolarProduction: number | null = null;
-
-    if (hasSolarProduction) {
-      totalSolarProduction =
-        calculateStatisticsSumGrowth(
-          this._data.stats,
-          types.solar!.map((source) => source.stat_energy_from)
-        ) || 0;
-    }
-
-    let totalBatteryIn: number | null = null;
-    let totalBatteryOut: number | null = null;
-
-    if (hasBattery) {
-      totalBatteryIn =
-        calculateStatisticsSumGrowth(
-          this._data.stats,
-          types.battery!.map((source) => source.stat_energy_to)
-        ) || 0;
-      totalBatteryOut =
-        calculateStatisticsSumGrowth(
-          this._data.stats,
-          types.battery!.map((source) => source.stat_energy_from)
-        ) || 0;
-    }
-
-    let returnedToGrid: number | null = null;
-
-    if (hasReturnToGrid) {
-      returnedToGrid =
-        calculateStatisticsSumGrowth(
-          this._data.stats,
-          types.grid![0].flow_to.map((flow) => flow.stat_energy_to)
-        ) || 0;
-    }
-
-    let solarConsumption: number | null = null;
-    if (hasSolarProduction) {
-      solarConsumption =
-        (totalSolarProduction || 0) -
-        (returnedToGrid || 0) -
-        (totalBatteryIn || 0);
-    }
-
-    let batteryFromGrid: null | number = null;
-    let batteryToGrid: null | number = null;
-    if (solarConsumption !== null && solarConsumption < 0) {
-      // What we returned to the grid and what went in to the battery is more than produced,
-      // so we have used grid energy to fill the battery
-      // or returned battery energy to the grid
-      if (hasBattery) {
-        batteryFromGrid = solarConsumption * -1;
-        if (batteryFromGrid > totalFromGrid) {
-          batteryToGrid = Math.min(0, batteryFromGrid - totalFromGrid);
-          batteryFromGrid = totalFromGrid;
-        }
-      }
-      solarConsumption = 0;
-    }
-
-    let solarToBattery: null | number = null;
-    if (hasSolarProduction && hasBattery) {
-      if (!batteryToGrid) {
-        batteryToGrid = Math.max(
-          0,
-          (returnedToGrid || 0) -
-            (totalSolarProduction || 0) -
-            (totalBatteryIn || 0) -
-            (batteryFromGrid || 0)
-        );
-      }
-      solarToBattery = totalBatteryIn! - (batteryFromGrid || 0);
-    } else if (!hasSolarProduction && hasBattery) {
-      batteryToGrid = returnedToGrid;
-    }
-
-    let batteryConsumption: number | null = null;
-    if (hasBattery) {
-      batteryConsumption = (totalBatteryOut || 0) - (batteryToGrid || 0);
-    }
-
-    const gridConsumption = Math.max(0, totalFromGrid - (batteryFromGrid || 0));
-
-    const totalHomeConsumption = Math.max(
-      0,
-      gridConsumption + (solarConsumption || 0) + (batteryConsumption || 0)
-    );
+    // booleans
+    const hasSolarProduction = ddata.hasSolarProduction;
+    const hasBattery = ddata.hasBattery;
+    const hasGas = ddata.hasGas;
+    const hasWater = ddata.hasWater;
+    const hasReturnToGrid = ddata.hasReturnToGrid;
+    // numbers (null)
+    const totalFromGrid = ddata.totalFromGrid;
+    const waterUsage = ddata.waterUsage;
+    const gasUsage = ddata.gasUsage;
+    const totalSolarProduction = ddata.totalSolarProduction;
+    const totalBatteryIn = ddata.totalBatteryIn;
+    const totalBatteryOut = ddata.totalBatteryOut;
+    const returnedToGrid = ddata.returnedToGrid;
+    const solarConsumption = ddata.solarConsumption;
+    const batteryFromGrid = ddata.batteryFromGrid;
+    const batteryToGrid = ddata.batteryToGrid;
+    const solarToBattery = ddata.solarToBattery;
+    const batteryConsumption = ddata.batteryConsumption;
+    const gridConsumption = ddata.gridConsumption;
+    const totalHomeConsumption = ddata.totalHomeConsumption;
 
     let homeSolarCircumference: number | undefined;
     if (hasSolarProduction) {

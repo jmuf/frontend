@@ -28,7 +28,11 @@ import {
 import "../../../../components/chart/ha-chart-base";
 import type { HaChartBase } from "../../../../components/chart/ha-chart-base";
 import "../../../../components/ha-card";
-import { EnergyData, getEnergyDataCollection } from "../../../../data/energy";
+import {
+  EnergyData,
+  getEnergyDataCollection,
+  calculateEnergyTotals,
+} from "../../../../data/energy";
 import {
   calculateStatisticSumGrowth,
   fetchStatistics,
@@ -262,6 +266,11 @@ export class HuiEnergyDevicesGraphCard
       });
     }
 
+    // sum up all "known" device consumptions
+    const show_device_other_pref = true; // FIXME make into a energyData.prefs. setting
+    let sum_device_consumption = 0;
+    let _sum_device_consumption_compare = 0;
+
     energyData.prefs.device_consumption.forEach((device, idx) => {
       const value =
         device.stat_consumption in data
@@ -274,6 +283,8 @@ export class HuiEnergyDevicesGraphCard
         x: value,
         idx,
       });
+
+      sum_device_consumption += value;
 
       if (compareData) {
         const compareValue =
@@ -289,12 +300,35 @@ export class HuiEnergyDevicesGraphCard
           x: compareValue,
           idx,
         });
+        _sum_device_consumption_compare += compareValue;
       }
     });
 
     chartData.sort((a, b) => b.x - a.x);
 
     chartData.length = this._config?.max_devices || chartData.length;
+
+    // add a final bar for all unassigned energy use
+    if (show_device_other_pref) {
+      const other_device_name = this.hass.localize(
+        "ui.panel.lovelace.cards.energy.energy_devices_graph.other_devicename"
+      );
+      const ddata = calculateEnergyTotals(energyData);
+      const total_consumption = ddata ? ddata.totalHomeConsumption || 0 : 0;
+      if (total_consumption > 0) {
+        const other_consumption = total_consumption - sum_device_consumption;
+        const final_idx = chartData.length;
+        chartData.push({
+          // @ts-expect-error
+          y: other_device_name,
+          x: other_consumption,
+          final_idx,
+        });
+      }
+      // FIXME: if (compareData) { ..
+      // we have _sum_device_consumption_compare above,
+      // but where do we get the corresponding historic totalHomeConsumption from?
+    }
 
     chartData.forEach((d: any) => {
       const color = getColorByIndex(d.idx);
