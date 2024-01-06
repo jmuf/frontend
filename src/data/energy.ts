@@ -179,6 +179,7 @@ type EnergySource =
 export interface EnergyPreferences {
   energy_sources: EnergySource[];
   device_consumption: DeviceConsumptionEnergyPreference[];
+  show_other: boolean;
 }
 
 export interface EnergyInfo {

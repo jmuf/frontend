@@ -6,6 +6,7 @@ import { fireEvent } from "../../../../common/dom/fire_event";
 import "../../../../components/ha-card";
 import "../../../../components/ha-icon-button";
 import "../../../../components/ha-state-icon";
+import "../../../../components/ha-checkbox";
 import {
   DeviceConsumptionEnergyPreference,
   EnergyPreferences,
@@ -109,6 +110,16 @@ export class EnergyDeviceSettings extends LitElement {
               )}</mwc-button
             >
           </div>
+          <div class="row">
+            <ha-checkbox
+              .checked=${this.preferences.show_other}
+              @change=${this._toggleShowOther}
+            >
+            </ha-checkbox>
+            ${this.hass.localize(
+              "ui.panel.config.energy.device_consumption.show_other"
+            )}
+          </div>
         </div>
       </ha-card>
     `;
@@ -146,6 +157,18 @@ export class EnergyDeviceSettings extends LitElement {
         device_consumption: this.preferences.device_consumption.filter(
           (device) => device !== deviceToDelete
         ),
+      });
+    } catch (err: any) {
+      showAlertDialog(this, { title: `Failed to save config: ${err.message}` });
+    }
+  }
+
+  private async _toggleShowOther(ev) {
+    this.preferences.show_other = ev.target.checked;
+    try {
+      await this._savePreferences({
+        ...this.preferences,
+        show_other: this.preferences.show_other,
       });
     } catch (err: any) {
       showAlertDialog(this, { title: `Failed to save config: ${err.message}` });

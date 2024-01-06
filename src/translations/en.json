@@ -1988,7 +1988,7 @@
               "device_consumption_energy": "Device consumption energy",
               "selected_stat_intro": "Select the energy sensor that measures the device's energy usage in either of {unit}."
             },
-            "show_other": "Also show unaccounted energy usage"
+            "show_other": "Also show other / unaccounted energy usage"
           }
         },
         "helpers": {

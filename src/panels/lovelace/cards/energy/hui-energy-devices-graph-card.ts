@@ -267,7 +267,7 @@ export class HuiEnergyDevicesGraphCard
     }
 
     // sum up all "known" device consumptions
-    const show_device_other_pref = true; // FIXME make into a energyData.prefs. setting
+    const show_device_other_pref = energyData.prefs.show_other;
     let sum_device_consumption = 0;
     let _sum_device_consumption_compare = 0;
 
